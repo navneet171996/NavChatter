@@ -23,6 +23,8 @@ public class ChatServer {
             ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
             serverSocketChannel.bind(new InetSocketAddress(5000));
 
+            System.out.println("Server is listening:");
+
             while(serverSocketChannel.isOpen()){
                 SocketChannel clientSocketChannel = serverSocketChannel.accept();
                 PrintWriter writer = new PrintWriter(Channels.newWriter(clientSocketChannel, StandardCharsets.UTF_8));

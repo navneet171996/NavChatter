@@ -10,20 +10,27 @@ import java.net.SocketAddress;
 import java.nio.channels.Channels;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ChatClient {
+    private BufferedReader reader;
     private PrintWriter writer;
+    private JTextArea incomingMessage;
     private JTextField outgoingMessage;
+
 
     public void startClient(){
         setupConnection();
 
+        JScrollPane scrollPane = createScrollableTextArea();
         outgoingMessage = new JTextField(20);
 
         JButton sendButton = new JButton("Send");
         sendButton.addActionListener(a -> sendMessage());
 
         JPanel mainPanel = new JPanel();
+        mainPanel.add(scrollPane);
         mainPanel.add(outgoingMessage);
         mainPanel.add(sendButton);
 
@@ -32,34 +39,21 @@ public class ChatClient {
         mainFrame.setSize(500, 300);
         mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         mainFrame.setVisible(true);
+
+        ExecutorService incomingMessageExecutors = Executors.newSingleThreadExecutor();
+        incomingMessageExecutors.execute(new IncomingMessagesReader());
     }
     private void setupConnection(){
         try {
             SocketAddress socketAddress = new InetSocketAddress("127.0.0.1", 5000);
             SocketChannel channel = SocketChannel.open(socketAddress);
 
+            reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
             writer = new PrintWriter(Channels.newWriter(channel, StandardCharsets.UTF_8));
             System.out.println("Connection Established with Server at time: " + System.currentTimeMillis());
         } catch (IOException e){
             System.out.println("Error in connecting to the server");
         }
-    }
-    public String read(){
-//        reader = Channels.newReader(socketChannel, StandardCharsets.UTF_8);
-//        bufferedReader = new BufferedReader(reader);
-//        try {
-//            String message = bufferedReader.readLine();
-//            return message;
-//        } catch (IOException e) {
-//            return "ERROR reading message";
-//        }
-        return "";
-    }
-
-    public void write(String message){
-//        writer = Channels.newWriter(socketChannel, StandardCharsets.UTF_8);
-//        printWriter = new PrintWriter(writer);
-//        printWriter.println(message);
     }
 
     private void sendMessage(){
@@ -67,6 +61,35 @@ public class ChatClient {
         writer.flush();
         outgoingMessage.setText("");
         outgoingMessage.requestFocus();
+    }
+
+    private JScrollPane createScrollableTextArea(){
+        incomingMessage = new JTextArea(15, 30);
+        incomingMessage.setLineWrap(true);
+        incomingMessage.setWrapStyleWord(true);
+        incomingMessage.setEditable(false);
+
+        JScrollPane scroll = new JScrollPane(incomingMessage);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
+
+        return scroll;
+    }
+
+    public class IncomingMessagesReader implements Runnable{
+
+        @Override
+        public void run() {
+            String message;
+            try {
+                while ((message = reader.readLine()) != null){
+                    System.out.println(message);
+                    incomingMessage.append(message + "\n");
+                }
+            }catch (IOException e){
+                e.printStackTrace();
+            }
+        }
     }
 
     public static void main(String[] args){
