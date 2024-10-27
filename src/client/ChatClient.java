@@ -1,12 +1,13 @@
 package client;
 
+import utils.MessageFormat;
+
 import javax.swing.*;
 import java.awt.*;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
@@ -15,9 +16,10 @@ import java.util.concurrent.Executors;
 
 public class ChatClient {
     private BufferedReader reader;
-    private PrintWriter writer;
+//    private PrintWriter writer;
     private JTextArea incomingMessage;
     private JTextField outgoingMessage;
+    private SocketChannel channel;
 
 
     public void startClient(){
@@ -27,7 +29,7 @@ public class ChatClient {
         outgoingMessage = new JTextField(20);
 
         JButton sendButton = new JButton("Send");
-        sendButton.addActionListener(a -> sendMessage());
+        sendButton.addActionListener(a -> prepareMessageForSending());
 
         JPanel mainPanel = new JPanel();
         mainPanel.add(scrollPane);
@@ -46,21 +48,48 @@ public class ChatClient {
     private void setupConnection(){
         try {
             SocketAddress socketAddress = new InetSocketAddress("127.0.0.1", 5000);
-            SocketChannel channel = SocketChannel.open(socketAddress);
+            channel = SocketChannel.open(socketAddress);
 
             reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
-            writer = new PrintWriter(Channels.newWriter(channel, StandardCharsets.UTF_8));
+//            writer = new PrintWriter(Channels.newWriter(channel, StandardCharsets.UTF_8));
             System.out.println("Connection Established with Server at time: " + System.currentTimeMillis());
         } catch (IOException e){
             System.out.println("Error in connecting to the server");
         }
     }
 
-    private void sendMessage(){
-        writer.println(outgoingMessage.getText());
-        writer.flush();
-        outgoingMessage.setText("");
-        outgoingMessage.requestFocus();
+    private void prepareMessageForSending(){
+        MessageFormat messageFormat = new MessageFormat();
+        messageFormat.setMessage(outgoingMessage.getText());
+//        messageFormat.setSender(username);
+//        messageFormat.setReceiver();
+    }
+    private void sendMessage(MessageFormat message){
+//        writer.println(outgoingMessage.getText());
+//        writer.flush();
+
+        try {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+
+            objectOutputStream.writeObject(message);
+            objectOutputStream.flush();
+
+            byte[] messageInBytes = byteArrayOutputStream.toByteArray();
+            ByteBuffer buffer = ByteBuffer.allocate(messageInBytes.length);
+            buffer.put(messageInBytes);
+            buffer.flip();
+
+            while (buffer.hasRemaining()){
+                channel.write(buffer);
+            }
+
+            outgoingMessage.setText("");
+            outgoingMessage.requestFocus();
+        }catch (IOException e){
+            System.out.println("Error");
+        }
+
     }
 
     private JScrollPane createScrollableTextArea(){
