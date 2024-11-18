@@ -20,10 +20,18 @@ public class ChatClient {
     private JTextArea incomingMessage;
     private JTextField outgoingMessage;
     private SocketChannel channel;
+    private String username;
 
+    public ChatClient() {
+    }
+
+    public ChatClient(String username) {
+        this.username = username;
+    }
 
     public void startClient(){
         setupConnection();
+        sendFirstMessage();
 
         JScrollPane scrollPane = createScrollableTextArea();
         outgoingMessage = new JTextField(20);
@@ -61,9 +69,34 @@ public class ChatClient {
     private void prepareMessageForSending(){
         MessageFormat messageFormat = new MessageFormat();
         messageFormat.setMessage(outgoingMessage.getText());
-//        messageFormat.setSender(username);
-//        messageFormat.setReceiver();
     }
+
+    private void sendFirstMessage(){
+        MessageFormat message = new MessageFormat();
+        message.setSender(username);
+        message.setReceiver("*****");
+
+        try {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+
+            objectOutputStream.writeObject(message);
+            objectOutputStream.flush();
+
+            byte[] messageInBytes = byteArrayOutputStream.toByteArray();
+            ByteBuffer buffer = ByteBuffer.allocate(messageInBytes.length);
+            buffer.put(messageInBytes);
+            buffer.flip();
+
+            while (buffer.hasRemaining()){
+                channel.write(buffer);
+            }
+
+        }catch (IOException e){
+            System.out.println("Error");
+        }
+    }
+
     private void sendMessage(MessageFormat message){
 //        writer.println(outgoingMessage.getText());
 //        writer.flush();

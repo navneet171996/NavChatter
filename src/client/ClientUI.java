@@ -9,6 +9,7 @@ public class ClientUI {
     private JTextField username;
     private JPasswordField password;
     private JLabel prompt;
+    private JFrame mainFrame;
 
     public void start(){
         username = new JTextField(20);
@@ -27,7 +28,7 @@ public class ClientUI {
         mainPanel.add(loginButton);
         mainPanel.add(prompt);
 
-        JFrame mainFrame = new JFrame("NavChatter");
+        mainFrame = new JFrame("NavChatter");
         mainFrame.getContentPane().add(BorderLayout.CENTER, mainPanel);
         mainFrame.setSize(400, 300);
         mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -62,7 +63,9 @@ public class ClientUI {
         String typedPassword = new String(password.getPassword());
 
         if(login(typedUsername, typedPassword)){
-            prompt.setText("Login Successful");
+            mainFrame.dispose();
+            ChatClient chatClient = new ChatClient(typedUsername);
+            chatClient.startClient();
         }else {
             prompt.setText("Invalid Credentials");
         }

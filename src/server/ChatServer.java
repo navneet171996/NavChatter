@@ -1,19 +1,20 @@
 package server;
 
+import utils.MessageFormat;
+
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.nio.channels.Channels;
+import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class ChatServer {
 
-    List<PrintWriter> clientWriters = new ArrayList<>();
+    private Map<String, ClientDetails> clientDetailsMap = new ConcurrentHashMap<>();
 
     public void startListening(){
         ExecutorService threadPool = Executors.newCachedThreadPool();
@@ -25,8 +26,9 @@ public class ChatServer {
 
             while(serverSocketChannel.isOpen()){
                 SocketChannel clientSocketChannel = serverSocketChannel.accept();
-                PrintWriter writer = new PrintWriter(Channels.newWriter(clientSocketChannel, StandardCharsets.UTF_8));
-                clientWriters.add(writer);
+//                PrintWriter writer = new PrintWriter(Channels.newWriter(clientSocketChannel, StandardCharsets.UTF_8));
+//                clientWriters.add(writer);
+
                 threadPool.submit(new ClientHandler(clientSocketChannel));
                 System.out.println("Successfully made a connection with the client");
             }
@@ -36,24 +38,75 @@ public class ChatServer {
 
     }
 
-    public void read(SocketChannel clientSocket){
-        String message;
-        BufferedReader reader = new BufferedReader(Channels.newReader(clientSocket, StandardCharsets.UTF_8));
+    public MessageFormat read(SocketChannel channel){
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
         try {
-            while((message = reader.readLine()) != null){
-                System.out.println(message);
-                write();
+            int bytesRead = channel.read(buffer);
+            if(bytesRead > 0){
+                buffer.flip();
+                ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(buffer.array(), 0, buffer.limit());
+                ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
+
+                return (MessageFormat) objectInputStream.readObject();
             }
+
+        } catch (IOException | ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+        return new MessageFormat();
+    }
+
+    public void write(SocketChannel channel, MessageFormat message){
+        try{
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+
+            objectOutputStream.writeObject(message);
+            objectOutputStream.flush();
+
+            ByteBuffer buffer = ByteBuffer.wrap(byteArrayOutputStream.toByteArray());
+            channel.write(buffer);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
     }
 
-    public void write(){
-        for (PrintWriter writer:clientWriters){
-            writer.println("Message received");
-            writer.flush();
+    public class ClientHandler implements Runnable{
+        private SocketChannel channel;
+
+        public ClientHandler(SocketChannel socketChannel){
+            channel = socketChannel;
+        }
+        @Override
+        public void run() {
+            ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+            try {
+                while(true){
+                    byteBuffer.clear();
+                    int bytesRead = channel.read(byteBuffer);
+                    if(bytesRead == -1)
+                        break;
+
+                    byteBuffer.flip();
+                    ByteArrayInputStream byteStream = new ByteArrayInputStream(byteBuffer.array(), 0, byteBuffer.limit());
+                    ObjectInputStream objectStream = new ObjectInputStream(byteStream);
+                    MessageFormat message = (MessageFormat) objectStream.readObject();
+                    if(message.getReceiver().equals("*****")){
+                        ClientDetails clientDetails = new ClientDetails();
+                        clientDetails.setUsername(message.getSender());
+                        clientDetails.setSocketChannel(channel);
+                        clientDetailsMap.put(message.getSender(), clientDetails);
+                    }else {
+                        ClientDetails clientDetails = clientDetailsMap.get(message.getSender());
+                        write(clientDetails.getSocketChannel(), message);
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }catch (ClassNotFoundException e){
+                e.printStackTrace();
+            }
         }
     }
 
@@ -61,27 +114,5 @@ public class ChatServer {
         ChatServer chatServer = new ChatServer();
         chatServer.startListening();
 
-    }
-
-    public class ClientHandler implements Runnable{
-        BufferedReader reader;
-        SocketChannel channel;
-
-        public ClientHandler(SocketChannel socketChannel){
-            channel = socketChannel;
-            reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
-        }
-        @Override
-        public void run() {
-            String message;
-            try {
-                while((message = reader.readLine()) != null){
-                    System.out.println(message);
-                    write();
-                }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
     }
 }
